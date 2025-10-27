@@ -2,6 +2,7 @@
 console.log("🚀 Clientify Auto Chat Opener cargado, esperando comando...");
 
 let stopProcess = false;
+let openedChats = new Set();
 
 /**
  * Obtiene los elementos div que representan los chats, filtrando por el emoji 🕐.
@@ -27,39 +28,72 @@ function scrollAndClickChat(chat, index) {
 }
 
 /**
- * Recorre los chats uno por uno, con control de parada.
- * @param {HTMLElement[]} chatDivs - Array de chats
+ * Hace scroll al final del contenedor de chats para cargar más.
  */
-function iterateChats(chatDivs) {
-  let index = 0;
-  function clickNextChat() {
+function scrollChatsContainerToEnd() {
+  const scrollContainer = document.querySelector('.scroll-bar');
+  if (scrollContainer) {
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    console.log('⬇️ Haciendo scroll para cargar más chats...');
+  }
+}
+
+/**
+ * Recorre los chats uno por uno, con control de parada y scroll para cargar más.
+ */
+function iterateChatsWithScroll() {
+  let lastCount = 0;
+  function processChats() {
     if (stopProcess) {
       console.log("⏹️ Proceso detenido por el usuario.");
       return;
     }
-    if (index >= chatDivs.length) {
-      console.log("✅ Terminó de abrir todos los chats.");
+    const chatDivs = getChatElements().filter(chat => !openedChats.has(chat));
+    if (chatDivs.length === 0) {
+      if (lastCount === 0) {
+        console.log("✅ Terminó de abrir todos los chats.");
+        return;
+      }
+      // Hacer scroll para intentar cargar más chats
+      scrollChatsContainerToEnd();
+      lastCount = 0;
+      setTimeout(processChats, 2000); // Espera a que carguen más chats
       return;
     }
-    scrollAndClickChat(chatDivs[index], index);
-    index++;
-    setTimeout(clickNextChat, 3000);
+    lastCount = chatDivs.length;
+    let index = 0;
+    function clickNextChat() {
+      if (stopProcess) {
+        console.log("⏹️ Proceso detenido por el usuario.");
+        return;
+      }
+      if (index >= chatDivs.length) {
+        // Hacer scroll para cargar más chats
+        scrollChatsContainerToEnd();
+        setTimeout(processChats, 2000);
+        return;
+      }
+      const chat = chatDivs[index];
+      if (chat) {
+        openedChats.add(chat);
+        scrollAndClickChat(chat, openedChats.size - 1);
+      }
+      index++;
+      setTimeout(clickNextChat, 3000);
+    }
+    clickNextChat();
   }
-  clickNextChat();
+  processChats();
 }
 
 /**
  * Inicia el proceso de apertura de chats.
  */
 function startChatIteration() {
+  stopProcess = false;
+  openedChats.clear();
   console.log("▶️ Iniciando apertura automática de chats...");
-  const chatDivs = getChatElements();
-  console.log(`Encontrados ${chatDivs.length} chats.`);
-  if (chatDivs.length === 0) {
-    console.warn("⚠️ No se encontraron chats.");
-    return;
-  }
-  iterateChats(chatDivs);
+  iterateChatsWithScroll();
 }
 
 /**
@@ -72,7 +106,6 @@ function stopChatIteration() {
 // Escucha mensajes desde popup.js
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "abrirChats") {
-    stopProcess = false;
     startChatIteration();
   }
   if (message.action === "detenerChats") {
