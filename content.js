@@ -15,75 +15,73 @@ function getChatElements() {
 }
 
 /**
- * Hace scroll y clic en el chat, mostrando el log.
- * @param {HTMLElement} chat - Elemento div del chat
- * @param {number} index - Índice del chat
- */
-function scrollAndClickChat(chat, index) {
-  if (chat) {
-    chat.scrollIntoView({ behavior: "smooth", block: "center" });
-    chat.click();
-    console.log(`💬 Chat ${index + 1} abierto`);
-  }
-}
-
-/**
- * Hace scroll al final del contenedor de chats para cargar más.
+ * Hace scroll en el contenedor de chats antes de abrir cada chat.
  */
 function scrollChatsContainerToEnd() {
-  const scrollContainer = document.querySelector('.scroll-bar');
+  const scrollContainer = document.querySelector('.MuiBox-root.mui-2m10ek');
   if (scrollContainer) {
     scrollContainer.scrollTop = scrollContainer.scrollHeight;
-    console.log('⬇️ Haciendo scroll para cargar más chats...');
+    console.log('⬇️ Buscando chats...');
   }
 }
 
 /**
- * Recorre los chats uno por uno, con control de parada y scroll para cargar más.
+ * Verifica si el emoji de detener está presente en el DOM.
+ * @returns {boolean} Verdadero si se encuentra el emoji de detener, falso en caso contrario
  */
-function iterateChatsWithScroll() {
-  let lastCount = 0;
-  function processChats() {
+function hasStopEmoji() {
+  return Array.from(document.querySelectorAll('p.MuiTypography-root.MuiTypography-body1.mui-194rj03'))
+    .some(p => p.textContent.includes('🤚🏻'));
+}
+
+/**
+ * Abre los chats encontrados tras hacer scroll.
+ */
+function scrollAndOpenChats() {
+  let scrollStopped = false;
+  if (hasStopEmoji()) {
+    console.log("🛑 Emoji de stop encontrado, deteniendo el scroll. Abriendo solo los chats visibles sin emoji.");
+    scrollStopped = true;
+  } else {
+    scrollChatsContainerToEnd();
+  }
+  setTimeout(() => {
+    const chatDivs = getChatElements().filter(div => !div.textContent.includes('🤚🏻'));
+    console.log(`Encontrados ${chatDivs.length} chats sin emoji de stop.`);
+    if (chatDivs.length === 0) {
+      console.warn("⚠️ No se encontraron chats sin emoji de stop.");
+      return;
+    }
+    iterateChats(chatDivs);
+  }, 2000); // Espera 2 segundos tras el scroll antes de abrir chats
+}
+
+/**
+ * Recorre los chats uno por uno, con control de parada.
+ * @param {HTMLElement[]} chatDivs - Array de chats
+ */
+function iterateChats(chatDivs) {
+  let index = 0;
+  function clickNextChat() {
     if (stopProcess) {
       console.log("⏹️ Proceso detenido por el usuario.");
       return;
     }
-    const chatDivs = getChatElements().filter(chat => !openedChats.has(chat));
-    if (chatDivs.length === 0) {
-      if (lastCount === 0) {
-        console.log("✅ Terminó de abrir todos los chats.");
-        return;
-      }
-      // Hacer scroll para intentar cargar más chats
-      scrollChatsContainerToEnd();
-      lastCount = 0;
-      setTimeout(processChats, 2000); // Espera a que carguen más chats
+    if (index >= chatDivs.length) {
+      console.log("✅ Terminó de abrir todos los chats.");
       return;
     }
-    lastCount = chatDivs.length;
-    let index = 0;
-    function clickNextChat() {
-      if (stopProcess) {
-        console.log("⏹️ Proceso detenido por el usuario.");
-        return;
-      }
-      if (index >= chatDivs.length) {
-        // Hacer scroll para cargar más chats
-        scrollChatsContainerToEnd();
-        setTimeout(processChats, 2000);
-        return;
-      }
-      const chat = chatDivs[index];
-      if (chat) {
-        openedChats.add(chat);
-        scrollAndClickChat(chat, openedChats.size - 1);
-      }
-      index++;
-      setTimeout(clickNextChat, 3000);
+    const chat = chatDivs[index];
+    if (chat) {
+      chat.scrollIntoView({ behavior: "smooth", block: "center" });
+      chat.click();
+      console.log(`💬 Chat ${index + 1} abierto`);
+      openedChats.add(chat);
     }
-    clickNextChat();
+    index++;
+    setTimeout(clickNextChat, 3000);
   }
-  processChats();
+  clickNextChat();
 }
 
 /**
@@ -92,8 +90,7 @@ function iterateChatsWithScroll() {
 function startChatIteration() {
   stopProcess = false;
   openedChats.clear();
-  console.log("▶️ Iniciando apertura automática de chats...");
-  iterateChatsWithScroll();
+  scrollAndOpenChats();
 }
 
 /**
